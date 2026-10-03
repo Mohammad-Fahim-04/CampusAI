@@ -1,35 +1,38 @@
-cd D:\GenAi\CampusAI
-
-@"
 # Environment
+
 .env
 .env.*
 !.env.example
 
 # Python
+
 __pycache__/
 *.py[cod]
 .venv/
 venv/
 
 # Node
+
 node_modules/
 dist/
 
 # IDE / local tools
+
 .vscode/
 .qodo/
 
 # Local RAG data
+
 ai-service/data/*.pdf
 ai-service/data/faiss_index/
 ai-service/data/chroma/
 ai-service/data/qdrant_data/
 
 # Logs
+
 *.log
 
 # OS
+
 .DS_Store
 Thumbs.db
-"@ | Set-Content .gitignore
