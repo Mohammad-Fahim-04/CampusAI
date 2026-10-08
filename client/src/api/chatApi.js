@@ -1,12 +1,12 @@
 const API_URL = (import.meta.env.VITE_API_URL || "http://localhost:8000").replace(/\/$/, "");
 
-export async function sendMessage(programme, message) {
+export async function sendMessage(programme, message, history = []) {
   let res;
   try {
     res = await fetch(`${API_URL}/api/chat`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ programme, message }),
+      body: JSON.stringify({ programme, message, history }),
     });
   } catch {
     throw new Error("Can't reach the backend. Check that it is running on " + API_URL + ".");

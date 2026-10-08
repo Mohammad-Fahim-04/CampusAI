@@ -1,6 +1,8 @@
 # CampusAI — Client
 
-React + Vite chat UI for CampusAI.
+React + Vite frontend for CampusAI, with a public landing page at `/` and the existing assistant at `/chat`.
+
+The landing page links into the existing chat experience; chat messages continue to use the FastAPI `/api/chat` endpoint.
 
 ```bash
 npm install
