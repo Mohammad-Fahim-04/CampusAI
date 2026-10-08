@@ -1,3 +1,4 @@
+import os
 import logging
 from typing import Literal
 from pathlib import Path
@@ -16,10 +17,22 @@ from .nodes import LLMConfigError, LLMServiceError  # noqa: E402
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="CampusAI")
+FRONTEND_URL = (
+    os.getenv("FRONTEND_URL") or "http://localhost:5173"
+).rstrip("/")
+ALLOWED_ORIGINS = list(
+    dict.fromkeys(
+        [
+            "http://localhost:5173",
+            "http://127.0.0.1:5173",
+            FRONTEND_URL,
+        ]
+    )
+)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=ALLOWED_ORIGINS,
     allow_methods=["*"],
     allow_headers=["*"],
 )
