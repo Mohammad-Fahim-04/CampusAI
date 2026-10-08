@@ -24,7 +24,6 @@ dist/
 
 # Local RAG data
 
-ai-service/data/*.pdf
 ai-service/data/faiss_index/
 ai-service/data/chroma/
 ai-service/data/qdrant_data/
