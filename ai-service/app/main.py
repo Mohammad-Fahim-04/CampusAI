@@ -59,6 +59,11 @@ def health():
     return {"status": "ok"}
 
 
+@app.get("/")
+def root():
+    return {"status": "ok", "service": "CampusAI Backend"}
+
+
 @app.post("/api/chat", response_model=ChatResponse)
 def chat(req: ChatRequest):
     message = req.message.strip()
