@@ -1,5 +1,6 @@
 import os
 import re
+from pathlib import Path
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
@@ -50,6 +51,20 @@ def _latest_user_text(state: State) -> str:
     return ""
 
 
+def _recent_history(state: State, limit: int = 5) -> list:
+    messages = [
+        msg
+        for msg in state["messages"]
+        if isinstance(msg, (HumanMessage, AIMessage))
+    ]
+    latest_user_index = next(
+        (index for index in range(len(messages) - 1, -1, -1)
+         if isinstance(messages[index], HumanMessage)),
+        len(messages),
+    )
+    return messages[:latest_user_index][-limit:]
+
+
 def normalize_query_type(raw: str) -> str:
     """Map any model output to exactly 'academic', 'fee' or 'general'."""
     match = re.search(r"\b(academic|fee|general)\b", (raw or "").lower())
@@ -62,12 +77,26 @@ academic: attendance, exams, grading, credits, promotion, course structure, summ
 fee: fees, tuition, payment, refund, late charges, scholarships, money-related college questions
 general: greetings, casual conversation, anything else
 
-Reply with only one word: academic, fee, or general."""
+Use recent conversation only to resolve references and follow-up intent. Classify the
+current question in that context; do not let an unrelated earlier topic override it.
+Clearly academic or fee-related questions remain in that category even if the documents
+may not contain the answer. Reply with only one word: academic, fee, or general."""
 
 
 def classifier(state: State) -> dict:
+    history = _recent_history(state)
+    history_text = "\n".join(
+        f"{'Previous user' if isinstance(msg, HumanMessage) else 'Previous assistant'}: {msg.content}"
+        for msg in history
+    )
+    current_question = _latest_user_text(state)
+    question_with_context = (
+        f"Recent conversation:\n{history_text}\n\nCurrent user question:\n{current_question}"
+        if history_text
+        else current_question
+    )
     reply = _invoke_llm(
-        [SystemMessage(content=CLASSIFIER_PROMPT), HumanMessage(content=_latest_user_text(state))]
+        [SystemMessage(content=CLASSIFIER_PROMPT), HumanMessage(content=question_with_context)]
     )
     return {"query_type": normalize_query_type(reply.content)}
 
@@ -78,10 +107,41 @@ def route_query(state: State) -> str:
 
 def _retrieve(get_retriever, state: State) -> dict:
     try:
-        docs = get_retriever().invoke(_latest_user_text(state))
+        query = _latest_user_text(state)
+        if re.search(
+            r"\b(?:that|this|it|those|these|them|they|there|less|more|such|"
+            r"what about|what happens|what if|how much)\b",
+            query,
+            re.IGNORECASE,
+        ):
+            history = _recent_history(state)
+            if history:
+                history_text = "\n".join(
+                    f"{'User' if isinstance(msg, HumanMessage) else 'Assistant'}: {msg.content}"
+                    for msg in history
+                )
+                query = (
+                    f"Recent conversation:\n{history_text}\n\n"
+                    f"Current user question: {query}"
+                )
+        docs = get_retriever().invoke(query)
     except PDFMissingError as exc:
         return {"retrieved_context": f"{PDF_MISSING_PREFIX} {exc}"}
-    return {"retrieved_context": "\n\n".join(d.page_content for d in docs)}
+
+    formatted_docs = []
+    for doc in docs:
+        metadata = doc.metadata
+        details = []
+        source = metadata.get("source")
+        if source:
+            source_name = Path(str(source).replace("\\", "/")).name
+            details.append(f"Source: {source_name}")
+        page = metadata.get("page")
+        if page is not None:
+            details.append(f"Page: {page}")
+        header = f"[{' | '.join(details)}]\n\n" if details else ""
+        formatted_docs.append(f"{header}{doc.page_content}")
+    return {"retrieved_context": "\n\n".join(formatted_docs)}
 
 
 def academic_rag(state: State) -> dict:

@@ -38,12 +38,15 @@ def _build_retriever(pdf_path: Path):
         raise PDFMissingError(
             f"{pdf_path.name} could not be read. Check that it is a valid, readable PDF."
         ) from exc
-    splitter = RecursiveCharacterTextSplitter(chunk_size=800, chunk_overlap=100)
+    splitter = RecursiveCharacterTextSplitter(chunk_size=700, chunk_overlap=120)
     chunks = splitter.split_documents(pages)
     if not chunks:
         raise PDFMissingError(f"{pdf_path.name} contains no readable text.")
     store = FAISS.from_documents(chunks, _get_embeddings())
-    return store.as_retriever(search_kwargs={"k": 4})
+    return store.as_retriever(
+        search_type="mmr",
+        search_kwargs={"k": 5, "fetch_k": 15, "lambda_mult": 0.5},
+    )
 
 
 def get_retriever(kind: str):

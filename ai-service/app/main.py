@@ -5,7 +5,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage
 from pydantic import BaseModel, Field
 
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
@@ -25,9 +25,15 @@ app.add_middleware(
 )
 
 
+class ChatHistoryMessage(BaseModel):
+    role: Literal["user", "assistant"]
+    content: str = Field(min_length=1)
+
+
 class ChatRequest(BaseModel):
     programme: Literal["BCA", "BBA", "B.Com (H)"] = "BCA"
     message: str = Field(min_length=1)
+    history: list[ChatHistoryMessage] = Field(default_factory=list)
 
 
 class ChatResponse(BaseModel):
@@ -45,11 +51,29 @@ def chat(req: ChatRequest):
     message = req.message.strip()
     if not message:
         raise HTTPException(status_code=422, detail="Message cannot be empty.")
+
+    history_messages = []
+    seen_current = False
+    for item in req.history:
+        message_content = item.content.strip()
+        if not message_content:
+            continue
+        if item.role == "user":
+            history_messages.append(HumanMessage(content=message_content))
+        else:
+            history_messages.append(AIMessage(content=message_content))
+
+        if item.role == "user" and message_content == message:
+            seen_current = True
+
+    if not seen_current:
+        history_messages.append(HumanMessage(content=message))
+
     try:
         result = campus_graph.invoke(
             {
                 "programme": req.programme,
-                "messages": [HumanMessage(content=message)],
+                "messages": history_messages,
                 "query_type": "",
                 "retrieved_context": "",
             }
