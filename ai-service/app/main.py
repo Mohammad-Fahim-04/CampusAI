@@ -1,5 +1,6 @@
 import os
 import logging
+from time import perf_counter
 from typing import Literal
 from pathlib import Path
 
@@ -68,6 +69,7 @@ def root():
 
 @app.post("/api/chat", response_model=ChatResponse)
 def chat(req: ChatRequest):
+    logger.info("[CHAT] request received")
     message = req.message.strip()
     if not message:
         raise HTTPException(status_code=422, detail="Message cannot be empty.")
@@ -90,6 +92,8 @@ def chat(req: ChatRequest):
         history_messages.append(HumanMessage(content=message))
 
     try:
+        graph_started = perf_counter()
+        logger.info("[CHAT] graph started")
         result = campus_graph.invoke(
             {
                 "programme": req.programme,
@@ -98,15 +102,27 @@ def chat(req: ChatRequest):
                 "retrieved_context": "",
             }
         )
+        logger.info("[CHAT] graph completed in %.2fs", perf_counter() - graph_started)
     except LLMConfigError as exc:
+        logger.exception(
+            "[CHAT] graph failed after %.2fs (LLM configuration)",
+            perf_counter() - graph_started,
+        )
         raise HTTPException(status_code=503, detail=str(exc))
     except LLMServiceError as exc:
+        logger.exception(
+            "[CHAT] graph failed after %.2fs (LLM service)",
+            perf_counter() - graph_started,
+        )
         raise HTTPException(
             status_code=502,
             detail="The Groq AI service could not complete the request. Check connectivity and model access, then try again.",
         ) from exc
     except Exception as exc:
-        logger.exception("Unexpected error handling /api/chat")
+        logger.exception(
+            "[CHAT] graph failed after %.2fs (unexpected error)",
+            perf_counter() - graph_started,
+        )
         raise HTTPException(
             status_code=500,
             detail="An unexpected backend error occurred. Please try again.",

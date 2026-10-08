@@ -1,11 +1,15 @@
 import os
 import re
+import logging
+from time import perf_counter
 from pathlib import Path
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
 from .rag import PDFMissingError, get_academic_retriever, get_fee_retriever
 from .state import State
+
+logger = logging.getLogger(__name__)
 
 MODEL = "openai/gpt-oss-120b"
 NOT_AVAILABLE = "The information is not available in the provided college documents."
@@ -31,17 +35,34 @@ def get_llm():
             )
         from langchain_groq import ChatGroq
 
-        _llm = ChatGroq(model=MODEL, temperature=0.4)
+        started = perf_counter()
+        _llm = ChatGroq(
+            model=MODEL,
+            temperature=0.4,
+            timeout=30,
+            max_retries=0,
+        )
+        logger.info("[CHAT] Groq client initialized in %.2fs", perf_counter() - started)
     return _llm
 
 
-def _invoke_llm(messages):
+def _invoke_llm(messages, stage):
+    started = perf_counter()
+    logger.info("[CHAT] %s LLM started", stage)
     try:
-        return get_llm().invoke(messages)
+        result = get_llm().invoke(messages)
     except LLMConfigError:
         raise
     except Exception as exc:
+        logger.exception(
+            "[CHAT] %s LLM failed after %.2fs (%s)",
+            stage,
+            perf_counter() - started,
+            type(exc).__name__,
+        )
         raise LLMServiceError from exc
+    logger.info("[CHAT] %s LLM completed in %.2fs", stage, perf_counter() - started)
+    return result
 
 
 def _latest_user_text(state: State) -> str:
@@ -84,6 +105,8 @@ may not contain the answer. Reply with only one word: academic, fee, or general.
 
 
 def classifier(state: State) -> dict:
+    started = perf_counter()
+    logger.info("[CHAT] classifier started")
     history = _recent_history(state)
     history_text = "\n".join(
         f"{'Previous user' if isinstance(msg, HumanMessage) else 'Previous assistant'}: {msg.content}"
@@ -96,9 +119,16 @@ def classifier(state: State) -> dict:
         else current_question
     )
     reply = _invoke_llm(
-        [SystemMessage(content=CLASSIFIER_PROMPT), HumanMessage(content=question_with_context)]
+        [SystemMessage(content=CLASSIFIER_PROMPT), HumanMessage(content=question_with_context)],
+        "classifier",
     )
-    return {"query_type": normalize_query_type(reply.content)}
+    query_type = normalize_query_type(reply.content)
+    logger.info(
+        "[CHAT] classifier completed in %.2fs (query_type=%s)",
+        perf_counter() - started,
+        query_type,
+    )
+    return {"query_type": query_type}
 
 
 def route_query(state: State) -> str:
@@ -106,6 +136,8 @@ def route_query(state: State) -> str:
 
 
 def _retrieve(get_retriever, state: State) -> dict:
+    started = perf_counter()
+    logger.info("[CHAT] RAG started")
     try:
         query = _latest_user_text(state)
         if re.search(
@@ -126,8 +158,13 @@ def _retrieve(get_retriever, state: State) -> dict:
                 )
         docs = get_retriever().invoke(query)
     except PDFMissingError as exc:
+        logger.warning("[CHAT] RAG failed after %.2fs (PDF unavailable)", perf_counter() - started)
         return {"retrieved_context": f"{PDF_MISSING_PREFIX} {exc}"}
+    except Exception:
+        logger.exception("[CHAT] RAG failed after %.2fs", perf_counter() - started)
+        raise
 
+    logger.info("[CHAT] RAG completed in %.2fs (documents=%d)", perf_counter() - started, len(docs))
     formatted_docs = []
     for doc in docs:
         metadata = doc.metadata
@@ -157,11 +194,14 @@ def general(state: State) -> dict:
 
 
 def response(state: State) -> dict:
+    started = perf_counter()
+    logger.info("[CHAT] response generation started")
     context = state["retrieved_context"]
     query_type = state["query_type"]
     programme = state["programme"]
 
     if context.startswith(PDF_MISSING_PREFIX):
+        logger.info("[CHAT] response generated in %.2fs (PDF unavailable)", perf_counter() - started)
         return {"messages": [AIMessage(content=context[len(PDF_MISSING_PREFIX):].strip())]}
 
     if query_type == "general":
@@ -182,5 +222,6 @@ def response(state: State) -> dict:
         )
 
     history = [m for m in state["messages"] if isinstance(m, (HumanMessage, AIMessage))]
-    reply = _invoke_llm([SystemMessage(content=system)] + history[-6:])
+    reply = _invoke_llm([SystemMessage(content=system)] + history[-6:], "response")
+    logger.info("[CHAT] response generated in %.2fs", perf_counter() - started)
     return {"messages": [AIMessage(content=reply.content)]}
