@@ -1,4 +1,5 @@
 const API_URL = (import.meta.env.VITE_API_URL || "http://localhost:8000").replace(/\/$/, "");
+const MAX_HISTORY_MESSAGES = 5;
 
 function createApiError(message, code, status) {
   const error = new Error(message);
@@ -33,7 +34,11 @@ export async function sendMessage(programme, message, history = []) {
     res = await fetch(`${API_URL}/api/chat`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ programme, message, history }),
+      body: JSON.stringify({
+        programme,
+        message,
+        history: history.slice(-MAX_HISTORY_MESSAGES),
+      }),
     });
   } catch {
     throw await networkError();

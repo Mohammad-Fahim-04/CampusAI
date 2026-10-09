@@ -14,6 +14,7 @@ load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 from .graph import campus_graph  # noqa: E402
 from .nodes import LLMConfigError, LLMServiceError  # noqa: E402
+from .state import MAX_HISTORY_MESSAGES  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -76,7 +77,7 @@ def chat(req: ChatRequest):
 
     history_messages = []
     seen_current = False
-    for item in req.history:
+    for item in req.history[-MAX_HISTORY_MESSAGES:]:
         message_content = item.content.strip()
         if not message_content:
             continue

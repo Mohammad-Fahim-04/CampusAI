@@ -1,5 +1,6 @@
 """PDF-backed retrievers. Built lazily so the app starts even when PDFs are missing."""
 import logging
+import threading
 from time import perf_counter
 from pathlib import Path
 
@@ -16,6 +17,7 @@ EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 
 _embeddings = None
 _retrievers = {}
+_initialization_lock = threading.RLock()
 
 
 class PDFMissingError(Exception):
@@ -25,15 +27,17 @@ class PDFMissingError(Exception):
 def _get_embeddings():
     global _embeddings
     if _embeddings is None:
-        started = perf_counter()
-        logger.info("[CHAT] embedding model initialization started")
-        from langchain_huggingface import HuggingFaceEmbeddings
+        with _initialization_lock:
+            if _embeddings is None:
+                started = perf_counter()
+                logger.info("[CHAT] embedding model initialization started")
+                from langchain_huggingface import HuggingFaceEmbeddings
 
-        _embeddings = HuggingFaceEmbeddings(model_name=EMBEDDING_MODEL)
-        logger.info(
-            "[CHAT] embedding model initialized in %.2fs",
-            perf_counter() - started,
-        )
+                _embeddings = HuggingFaceEmbeddings(model_name=EMBEDDING_MODEL)
+                logger.info(
+                    "[CHAT] embedding model initialized in %.2fs",
+                    perf_counter() - started,
+                )
     return _embeddings
 
 
@@ -78,16 +82,20 @@ def get_retriever(kind: str):
     if kind in _retrievers:
         logger.info("[CHAT] retriever cache hit (%s)", kind)
         return _retrievers[kind]
-    logger.info("[CHAT] retriever cache miss (%s)", kind)
-    pdf_path = DATA_DIR / PDF_FILES[kind]
-    if not pdf_path.is_file():
-        raise PDFMissingError(
-            f"{PDF_FILES[kind]} was not found. Add it to ai-service/data/ and restart the backend."
-        )
-    retriever = _build_retriever(pdf_path)
-    _retrievers[kind] = retriever
-    logger.info("[CHAT] retriever initialized (%s)", kind)
-    return retriever
+    with _initialization_lock:
+        if kind in _retrievers:
+            logger.info("[CHAT] retriever cache hit (%s)", kind)
+            return _retrievers[kind]
+        logger.info("[CHAT] retriever cache miss (%s)", kind)
+        pdf_path = DATA_DIR / PDF_FILES[kind]
+        if not pdf_path.is_file():
+            raise PDFMissingError(
+                f"{PDF_FILES[kind]} was not found. Add it to ai-service/data/ and restart the backend."
+            )
+        retriever = _build_retriever(pdf_path)
+        _retrievers[kind] = retriever
+        logger.info("[CHAT] retriever initialized (%s)", kind)
+        return retriever
 
 
 def get_academic_retriever():

@@ -2,6 +2,8 @@ from typing import Annotated, TypedDict
 
 from langgraph.graph.message import add_messages
 
+MAX_HISTORY_MESSAGES = 5
+
 
 class State(TypedDict):
     programme: str

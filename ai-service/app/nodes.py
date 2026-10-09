@@ -7,7 +7,7 @@ from pathlib import Path
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
 from .rag import PDFMissingError, get_academic_retriever, get_fee_retriever
-from .state import State
+from .state import MAX_HISTORY_MESSAGES, State
 
 logger = logging.getLogger(__name__)
 
@@ -72,7 +72,7 @@ def _latest_user_text(state: State) -> str:
     return ""
 
 
-def _recent_history(state: State, limit: int = 5) -> list:
+def _recent_history(state: State, limit: int = MAX_HISTORY_MESSAGES) -> list:
     messages = [
         msg
         for msg in state["messages"]
@@ -222,6 +222,9 @@ def response(state: State) -> dict:
         )
 
     history = [m for m in state["messages"] if isinstance(m, (HumanMessage, AIMessage))]
-    reply = _invoke_llm([SystemMessage(content=system)] + history[-6:], "response")
+    reply = _invoke_llm(
+        [SystemMessage(content=system)] + history[-(MAX_HISTORY_MESSAGES + 1):],
+        "response",
+    )
     logger.info("[CHAT] response generated in %.2fs", perf_counter() - started)
     return {"messages": [AIMessage(content=reply.content)]}
