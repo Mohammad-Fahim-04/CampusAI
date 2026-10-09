@@ -15,7 +15,7 @@ The project combines React, FastAPI, LangGraph, LangChain, FAISS, Hugging Face e
 - 🏷️ Automatic query classification
 - 🔗 LangGraph-based AI workflow
 - 💬 Conversational chat interface
-- 🎓 Programme selection: BCA, BBA, B.Com(H)
+- 🎓 Programme selection: BSc IT, BBA, B.Com(H)
 - 🌙 Modern dark UI
 - ⚡ FastAPI backend
 - ⚛️ React + Vite frontend
@@ -282,7 +282,7 @@ POST /api/chat
 Request:
 
 {
-  "programme": "BCA",
+  "programme": "BSc IT",
   "message": "What are the attendance requirements?"
 }
 
