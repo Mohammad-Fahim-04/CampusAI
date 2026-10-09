@@ -133,7 +133,9 @@ def classifier(state: State) -> dict:
 
 
 def route_query(state: State) -> str:
-    return state["query_type"]
+    query_type = state["query_type"]
+    logger.info("[CHAT] graph route selected (category=%s)", query_type)
+    return query_type
 
 
 def _retrieve(kind: str, state: State) -> dict:
@@ -200,10 +202,14 @@ def general(state: State) -> dict:
 
 def response(state: State) -> dict:
     started = perf_counter()
-    logger.info("[CHAT] response generation started")
     context = state["retrieved_context"]
     query_type = state["query_type"]
     programme = state["programme"]
+    logger.info(
+        "[CHAT] response generation started (category=%s, context_chars=%d)",
+        query_type,
+        len(context),
+    )
 
     if context.startswith(PDF_MISSING_PREFIX):
         logger.info("[CHAT] response generated in %.2fs (PDF unavailable)", perf_counter() - started)

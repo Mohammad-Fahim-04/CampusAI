@@ -230,7 +230,34 @@ def get_retriever(kind: str):
 def retrieve_documents(kind: str, query: str):
     """Run retrieval while preventing simultaneous indexes from being retained."""
     with _initialization_lock:
-        return get_retriever(kind).invoke(query)
+        retriever = get_retriever(kind)
+        vectorstore = retriever.vectorstore
+        query_embedding = vectorstore.embedding_function.embed_query(query)
+        scored_documents = vectorstore.max_marginal_relevance_search_with_score_by_vector(
+            query_embedding,
+            k=retriever.search_kwargs["k"],
+            fetch_k=retriever.search_kwargs["fetch_k"],
+            lambda_mult=retriever.search_kwargs["lambda_mult"],
+        )
+        logger.info(
+            "[CHAT] RAG selected category=%s retrieved_chunks=%d",
+            kind,
+            len(scored_documents),
+        )
+        for rank, (doc, distance) in enumerate(scored_documents, start=1):
+            excerpt = re.sub(r"\s+", " ", doc.page_content)[:180]
+            source = Path(str(doc.metadata.get("source", ""))).name
+            logger.info(
+                "[CHAT] RAG chunk category=%s rank=%d faiss_l2=%.4f "
+                "source=%s page=%s excerpt=%r",
+                kind,
+                rank,
+                float(distance),
+                source,
+                doc.metadata.get("page"),
+                excerpt,
+            )
+        return [doc for doc, _ in scored_documents]
 
 
 def get_academic_retriever():
