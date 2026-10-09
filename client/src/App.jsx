@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { ArrowLeft, GraduationCap, Menu } from "lucide-react";
+import { flushSync } from "react-dom";
+import { ArrowLeft, GraduationCap, PanelLeft } from "lucide-react";
 import LandingPage from "./components/LandingPage.jsx";
 import Sidebar from "./components/Sidebar.jsx";
 import ChatMessage from "./components/ChatMessage.jsx";
@@ -9,6 +10,33 @@ import ThemeToggle from "./components/ThemeToggle.jsx";
 import { sendMessage } from "./api/chatApi.js";
 
 const STORAGE_KEY = "campusai_conversations";
+
+/**
+ * Runs a UI state change inside a View Transition when the browser supports it
+ * (page changes cross-fade, the theme change reveals as a circle from the toggle).
+ * Falls back to a plain update elsewhere and for reduced-motion users.
+ */
+function withViewTransition(kind, update, origin) {
+  const canAnimate =
+    typeof document.startViewTransition === "function" &&
+    !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (!canAnimate) {
+    update();
+    return;
+  }
+  const root = document.documentElement;
+  root.dataset.transition = kind;
+  if (origin) {
+    root.style.setProperty("--vt-x", `${origin.x}px`);
+    root.style.setProperty("--vt-y", `${origin.y}px`);
+  }
+  const transition = document.startViewTransition(() => {
+    flushSync(update);
+  });
+  transition.finished.finally(() => {
+    delete root.dataset.transition;
+  });
+}
 
 function loadConversations() {
   try {
@@ -84,6 +112,7 @@ export default function App() {
   const [regenerationErrors, setRegenerationErrors] = useState({});
   const [theme, setTheme] = useState("dark");
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const endRef = useRef(null);
   const activeConversation = conversations.find((item) => item.id === activeConversationId);
   const messages = activeConversation?.messages || [];
@@ -101,14 +130,36 @@ export default function App() {
   const navigate = (path) => {
     if (window.location.pathname !== path) {
       window.history.pushState({}, "", path);
-      setCurrentPath(path);
+      withViewTransition("page", () => {
+        setCurrentPath(path);
+        window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+      });
+    } else {
+      window.scrollTo(0, 0);
     }
-    window.scrollTo(0, 0);
   };
 
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
   }, [theme]);
+
+  const toggleSidebar = () => {
+    if (window.matchMedia("(max-width: 820px)").matches) setSidebarOpen(true);
+    else setSidebarCollapsed((collapsed) => !collapsed);
+  };
+
+  const handleThemeToggle = (event) => {
+    const next = theme === "dark" ? "light" : "dark";
+    const rect = event?.currentTarget?.getBoundingClientRect?.();
+    withViewTransition(
+      "theme",
+      () => {
+        document.documentElement.setAttribute("data-theme", next);
+        setTheme(next);
+      },
+      rect ? { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 } : undefined,
+    );
+  };
 
   useEffect(() => {
     try {
@@ -119,6 +170,7 @@ export default function App() {
   }, [conversations]);
 
   useEffect(() => {
+    if (messages.length === 0 && !isLoading) return;
     endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages, isLoading]);
 
@@ -349,7 +401,7 @@ export default function App() {
   }
 
   return (
-    <div className="app">
+    <div className={`app${sidebarCollapsed ? " is-collapsed" : ""}`}>
       <Sidebar
         programme={programme}
         onProgrammeChange={handleProgrammeChange}
@@ -365,8 +417,14 @@ export default function App() {
       />
       <main className="main">
         <header className="topbar">
-          <button className="icon-btn menu-btn" onClick={() => setSidebarOpen(true)} aria-label="Open menu">
-            <Menu size={20} />
+          <button
+            className="icon-btn menu-btn"
+            onClick={toggleSidebar}
+            aria-label="Toggle sidebar"
+            aria-expanded={!sidebarCollapsed}
+            title="Toggle sidebar"
+          >
+            <PanelLeft size={20} />
           </button>
           <button className="chat-home-link" onClick={() => navigate("/")} aria-label="Back to CampusAI home">
             <ArrowLeft size={16} />
@@ -378,7 +436,7 @@ export default function App() {
             </h1>
             <p>Ask me about academics, fees, or anything else campus-related</p>
           </div>
-          <ThemeToggle theme={theme} onToggle={() => setTheme(theme === "dark" ? "light" : "dark")} />
+          <ThemeToggle theme={theme} onToggle={handleThemeToggle} />
         </header>
 
         <div className="chat-scroll">
