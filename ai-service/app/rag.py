@@ -1,10 +1,11 @@
 """PDF-backed retrievers. Built lazily so the app starts even when PDFs are missing."""
 import logging
-import os
 import re
 import threading
 from time import perf_counter
 from pathlib import Path
+
+from langchain_core.embeddings import Embeddings
 
 from .memory import log_process_memory
 
@@ -18,6 +19,7 @@ PDF_FILES = {
 }
 
 EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
+EMBEDDING_THREADS = 1
 CHUNK_SIZE = 700
 CHUNK_OVERLAP = 120
 CHUNK_SEPARATORS = ("\n\n", "\n", " ", "")
@@ -25,6 +27,25 @@ CHUNK_SEPARATORS = ("\n\n", "\n", " ", "")
 _embeddings = None
 _retrievers = {}
 _initialization_lock = threading.RLock()
+
+
+class FastEmbedEmbeddings(Embeddings):
+    def __init__(self):
+        from fastembed import TextEmbedding
+
+        self._model = TextEmbedding(
+            model_name=EMBEDDING_MODEL,
+            threads=EMBEDDING_THREADS,
+        )
+
+    def embed_documents(self, texts: list[str]) -> list[list[float]]:
+        return [
+            embedding.tolist()
+            for embedding in self._model.embed(texts, batch_size=1)
+        ]
+
+    def embed_query(self, text: str) -> list[float]:
+        return next(self._model.query_embed(text)).tolist()
 
 
 class PDFMissingError(Exception):
@@ -78,7 +99,6 @@ def _recursive_split(text: str, separators: tuple[str, ...] = CHUNK_SEPARATORS) 
 
     good_splits = []
     final_chunks = []
-    merge_separator = ""
     for split in _split_with_separator(text, separator):
         if len(split) < CHUNK_SIZE:
             good_splits.append(split)
@@ -100,33 +120,15 @@ def _get_embeddings():
     if _embeddings is None:
         with _initialization_lock:
             if _embeddings is None:
-                os.environ.setdefault("OMP_NUM_THREADS", "1")
-                os.environ.setdefault("MKL_NUM_THREADS", "1")
-                os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
-                os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
                 started = perf_counter()
                 logger.info("[CHAT] embedding model initialization started")
                 log_process_memory("before embedding model initialization")
-                from langchain_huggingface import HuggingFaceEmbeddings
-
-                import torch
-
-                torch.set_num_threads(1)
-                torch.set_num_interop_threads(1)
-                _embeddings = HuggingFaceEmbeddings(model_name=EMBEDDING_MODEL)
-                model = _embeddings._client
-                weight_bytes = sum(
-                    parameter.numel() * parameter.element_size()
-                    for parameter in model.parameters()
-                )
+                _embeddings = FastEmbedEmbeddings()
                 logger.info(
-                    "[CHAT] embedding model initialized in %.2fs (estimated weights=%.1f MiB)",
+                    "[CHAT] FastEmbed model initialized in %.2fs (model=%s, threads=%d)",
                     perf_counter() - started,
-                    weight_bytes / (1024 * 1024),
-                )
-                logger.info(
-                    "[MEMORY] embedding runtime torch_threads=%d torch_interop_threads=1",
-                    torch.get_num_threads(),
+                    EMBEDDING_MODEL,
+                    EMBEDDING_THREADS,
                 )
                 log_process_memory("after embedding model initialization")
     return _embeddings

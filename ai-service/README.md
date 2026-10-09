@@ -18,6 +18,12 @@ Restart the backend after adding them. Until then, `/api/health` and general que
 uvicorn app.main:app --reload --port 8000
 ```
 
+## Render Free deployment
+
+- Root directory: `ai-service`
+- Build command: `pip install -r requirements.txt`
+- Start command: `uvicorn app.main:app --host 0.0.0.0 --port $PORT --workers 1`
+
 ## API
 - `GET /api/health` → `{"status": "ok"}`
 - `POST /api/chat` with `{"programme": "BCA", "message": "..."}` → `{"answer": "...", "query_type": "academic|fee|general"}`
@@ -33,6 +39,6 @@ uvicorn app.main:app --reload --port 8000
   }
   ```
 
-The first academic/fee question builds the FAISS index and downloads the embedding model (`all-MiniLM-L6-v2`), so it takes longer.
+The first academic/fee question downloads and initializes the ONNX Runtime embedding model (`all-MiniLM-L6-v2`) and builds its FAISS index, so it takes longer. The same FastEmbed model instance embeds both indexed document chunks and user queries; the FAISS index is built from that runtime on first use and is never loaded with vectors from another model.
 
-For memory-limited deployments, the embedding model is loaded only when the first academic or fee question is asked. Only the most recently used document index is kept in memory; switching categories evicts the previous index and rebuilds it if needed. The service logs process RSS and peak RSS with `[MEMORY]` markers. Keep a single Uvicorn worker on a 512 MiB instance.
+For memory-limited deployments, only the most recently used document index is kept in memory; switching categories evicts the previous index and rebuilds it if needed. The service logs process RSS and peak RSS with `[MEMORY]` markers. Keep a single Uvicorn worker on a 512 MiB instance.
