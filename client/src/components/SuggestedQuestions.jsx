@@ -1,4 +1,6 @@
-import { BookOpen, ClipboardCheck, GraduationCap, WalletCards } from "lucide-react";
+import { useRef } from "react";
+import { ArrowUpRight, BookOpen, ClipboardCheck, GraduationCap, WalletCards } from "lucide-react";
+import { usePointerFx } from "./LandingPage.jsx";
 
 const SUGGESTIONS = [
   {
@@ -24,24 +26,34 @@ const SUGGESTIONS = [
 ];
 
 export default function SuggestedQuestions({ onSelect }) {
+  const ref = useRef(null);
+  usePointerFx(ref);
+
   return (
-    <section className="welcome-section" aria-labelledby="welcome-title">
+    <section className="welcome-section" aria-labelledby="welcome-title" ref={ref}>
       <div className="welcome-copy">
-        <span className="welcome-mark" aria-hidden="true">✦</span>
+        <span className="welcome-mark" aria-hidden="true">
+          <i />
+          <i />
+          <GraduationCap size={22} />
+        </span>
         <h2 id="welcome-title">Welcome to CampusAI</h2>
         <p>Choose a question to get started, or ask me anything about campus.</p>
       </div>
       <div className="suggested-grid">
-        {SUGGESTIONS.map(({ title, question, Icon }) => (
+        {SUGGESTIONS.map(({ title, question, Icon }, index) => (
           <button
             className="suggested-card"
             key={title}
             type="button"
+            data-glow
+            style={{ "--i": index }}
             onClick={() => onSelect(question)}
           >
             <span className="suggested-card-heading">
               <Icon size={18} aria-hidden="true" />
               <span>{title}</span>
+              <ArrowUpRight className="suggested-arrow" size={16} aria-hidden="true" />
             </span>
             <span className="suggested-question">{question}</span>
           </button>
