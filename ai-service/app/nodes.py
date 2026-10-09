@@ -6,7 +6,8 @@ from pathlib import Path
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
-from .rag import PDFMissingError, get_academic_retriever, get_fee_retriever
+from .memory import log_process_memory
+from .rag import PDFMissingError, retrieve_documents
 from .state import MAX_HISTORY_MESSAGES, State
 
 logger = logging.getLogger(__name__)
@@ -135,9 +136,10 @@ def route_query(state: State) -> str:
     return state["query_type"]
 
 
-def _retrieve(get_retriever, state: State) -> dict:
+def _retrieve(kind: str, state: State) -> dict:
     started = perf_counter()
     logger.info("[CHAT] RAG started")
+    log_process_memory(f"RAG request started ({kind})")
     try:
         query = _latest_user_text(state)
         if re.search(
@@ -156,15 +158,18 @@ def _retrieve(get_retriever, state: State) -> dict:
                     f"Recent conversation:\n{history_text}\n\n"
                     f"Current user question: {query}"
                 )
-        docs = get_retriever().invoke(query)
+        docs = retrieve_documents(kind, query)
     except PDFMissingError as exc:
         logger.warning("[CHAT] RAG failed after %.2fs (PDF unavailable)", perf_counter() - started)
+        log_process_memory(f"RAG request failed ({kind})")
         return {"retrieved_context": f"{PDF_MISSING_PREFIX} {exc}"}
     except Exception:
         logger.exception("[CHAT] RAG failed after %.2fs", perf_counter() - started)
+        log_process_memory(f"RAG request failed ({kind})")
         raise
 
     logger.info("[CHAT] RAG completed in %.2fs (documents=%d)", perf_counter() - started, len(docs))
+    log_process_memory(f"RAG request finished ({kind})")
     formatted_docs = []
     for doc in docs:
         metadata = doc.metadata
@@ -182,11 +187,11 @@ def _retrieve(get_retriever, state: State) -> dict:
 
 
 def academic_rag(state: State) -> dict:
-    return _retrieve(get_academic_retriever, state)
+    return _retrieve("academic", state)
 
 
 def fee_rag(state: State) -> dict:
-    return _retrieve(get_fee_retriever, state)
+    return _retrieve("fee", state)
 
 
 def general(state: State) -> dict:

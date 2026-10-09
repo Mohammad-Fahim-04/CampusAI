@@ -34,3 +34,5 @@ uvicorn app.main:app --reload --port 8000
   ```
 
 The first academic/fee question builds the FAISS index and downloads the embedding model (`all-MiniLM-L6-v2`), so it takes longer.
+
+For memory-limited deployments, the embedding model is loaded only when the first academic or fee question is asked. Only the most recently used document index is kept in memory; switching categories evicts the previous index and rebuilds it if needed. The service logs process RSS and peak RSS with `[MEMORY]` markers. Keep a single Uvicorn worker on a 512 MiB instance.

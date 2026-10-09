@@ -13,12 +13,13 @@ from pydantic import BaseModel, Field
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 from .graph import campus_graph  # noqa: E402
+from .memory import log_process_memory, memory_logging_lifespan  # noqa: E402
 from .nodes import LLMConfigError, LLMServiceError  # noqa: E402
 from .state import MAX_HISTORY_MESSAGES  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="CampusAI")
+app = FastAPI(title="CampusAI", lifespan=memory_logging_lifespan)
 FRONTEND_URL = (
     os.getenv("FRONTEND_URL") or "http://localhost:5173"
 ).rstrip("/")
@@ -71,6 +72,7 @@ def root():
 @app.post("/api/chat", response_model=ChatResponse)
 def chat(req: ChatRequest):
     logger.info("[CHAT] request received")
+    log_process_memory("chat request started")
     message = req.message.strip()
     if not message:
         raise HTTPException(status_code=422, detail="Message cannot be empty.")
@@ -128,6 +130,8 @@ def chat(req: ChatRequest):
             status_code=500,
             detail="An unexpected backend error occurred. Please try again.",
         ) from exc
+    finally:
+        log_process_memory("chat request finished")
     return ChatResponse(
         answer=str(result["messages"][-1].content), query_type=result["query_type"]
     )
