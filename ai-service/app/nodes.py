@@ -14,12 +14,6 @@ logger = logging.getLogger(__name__)
 
 MODEL = "openai/gpt-oss-120b"
 NOT_AVAILABLE = "The information is not available in the provided college documents."
-BSC_IT_DOCUMENT_NOTICE = (
-    "The current academic and fee PDFs contain edited BSc IT drafts. Their course "
-    "codes, fee figures, and institutional details have not been independently "
-    "verified, so I can't provide programme-specific details as fact. Please confirm "
-    "BSc IT information with the college."
-)
 PDF_MISSING_PREFIX = "PDF_MISSING:"
 
 _llm = None
@@ -221,13 +215,6 @@ def response(state: State) -> dict:
         logger.info("[CHAT] response generated in %.2fs (PDF unavailable)", perf_counter() - started)
         return {"messages": [AIMessage(content=context[len(PDF_MISSING_PREFIX):].strip())]}
 
-    if programme == "BSc IT" and query_type in {"academic", "fee"}:
-        logger.info(
-            "[CHAT] response generated in %.2fs (unverified BSc IT document draft)",
-            perf_counter() - started,
-        )
-        return {"messages": [AIMessage(content=BSC_IT_DOCUMENT_NOTICE)]}
-
     if query_type == "general":
         system = (
             "You are CampusAI, a friendly college assistant. "
@@ -241,9 +228,27 @@ def response(state: State) -> dict:
             f"The student is in the {programme} programme. "
             "Answer ONLY from the official college document context below. "
             "Do not invent college-specific information. "
-            f'If the answer is not in the context, reply exactly: "{NOT_AVAILABLE}"\n\n'
-            f"Context:\n{context}"
         )
+        if programme == "BSc IT":
+            system += (
+                "\n\nThe retrieved BSc IT material may include an 'EDITED DRAFT' "
+                "notice stating that course codes, fee figures, and institutional "
+                "details have not been independently verified. Do not give those "
+                "details as official facts. If the requested detail is present in "
+                "that draft, answer with the value or wording shown, label that "
+                "specific detail as unverified draft information, and say exactly "
+                "what should be confirmed with the college. If the question asks "
+                "about information not present or not clear in the context, identify "
+                "what is missing or ambiguous instead of returning a generic warning. "
+                "A draft notice about one detail does not justify withholding a "
+                "different directly supported answer. If a detail is missing or "
+                "ambiguous, identify that specific gap and what needs confirmation."
+            )
+        else:
+            system += (
+                f'If the answer is not in the context, reply exactly: "{NOT_AVAILABLE}"'
+            )
+        system += f"\n\nContext:\n{context}"
 
     history = [m for m in state["messages"] if isinstance(m, (HumanMessage, AIMessage))]
     reply = _invoke_llm(
