@@ -28,11 +28,13 @@ export default function ChatInput({ onSend, disabled }) {
 
   return (
     <div className="input-wrap">
-      <div className="input-box">
+      <div className={`input-box ${disabled ? "is-busy" : ""}`}>
         <button className="icon-btn" type="button" disabled title="Attachments aren't available yet" aria-label="Attach file">
           <Paperclip size={18} />
         </button>
         <textarea
+          id="chat-message"
+          name="message"
           ref={ref}
           rows={1}
           value={value}
@@ -44,6 +46,7 @@ export default function ChatInput({ onSend, disabled }) {
           <SendHorizonal size={18} />
         </button>
       </div>
+      <p className="input-hint">Enter to send, Shift+Enter for a new line</p>
     </div>
   );
 }
