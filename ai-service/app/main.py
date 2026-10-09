@@ -49,7 +49,7 @@ class ChatHistoryMessage(BaseModel):
 
 
 class ChatRequest(BaseModel):
-    programme: Literal["BCA", "BBA", "B.Com (H)"] = "BCA"
+    programme: Literal["BSc IT", "BBA", "B.Com (H)"] = "BSc IT"
     message: str = Field(min_length=1)
     history: list[ChatHistoryMessage] = Field(default_factory=list)
 

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { ArrowLeft, GraduationCap, PanelLeft } from "lucide-react";
 import LandingPage from "./components/LandingPage.jsx";
-import Sidebar from "./components/Sidebar.jsx";
+import Sidebar, { PROGRAMMES } from "./components/Sidebar.jsx";
 import ChatMessage from "./components/ChatMessage.jsx";
 import ChatInput from "./components/ChatInput.jsx";
 import SuggestedQuestions from "./components/SuggestedQuestions.jsx";
@@ -48,9 +48,10 @@ function loadConversations() {
         typeof conversation.id === "string" &&
         typeof conversation.title === "string" &&
         Array.isArray(conversation.messages) &&
-        ["BCA", "BBA", "B.Com (H)"].includes(conversation.programme),
+        (PROGRAMMES.includes(conversation.programme) || conversation.programme === "BCA"),
     ).map((conversation) => ({
       ...conversation,
+      programme: conversation.programme === "BCA" ? "BSc IT" : conversation.programme,
       messages: conversation.messages
         .filter(
           (message) =>
@@ -105,7 +106,7 @@ export default function App() {
     const mostRecent = [...conversations].sort((a, b) =>
       (b.updatedAt || "").localeCompare(a.updatedAt || ""),
     )[0];
-    return mostRecent?.programme || "BCA";
+    return mostRecent?.programme || "BSc IT";
   });
   const [loadingConversationId, setLoadingConversationId] = useState(null);
   const [regeneratingMessageId, setRegeneratingMessageId] = useState(null);

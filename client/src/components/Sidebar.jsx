@@ -10,7 +10,7 @@ import {
   X,
 } from "lucide-react";
 
-export const PROGRAMMES = ["BCA", "BBA", "B.Com (H)"];
+export const PROGRAMMES = ["BSc IT", "BBA", "B.Com (H)"];
 
 const ROUTES = ["Academic Handbook (RAG)", "Fee Structure (RAG)", "General Knowledge"];
 

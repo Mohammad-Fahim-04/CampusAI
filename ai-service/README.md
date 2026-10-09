@@ -26,11 +26,11 @@ uvicorn app.main:app --reload --port 8000
 
 ## API
 - `GET /api/health` → `{"status": "ok"}`
-- `POST /api/chat` with `{"programme": "BCA", "message": "..."}` → `{"answer": "...", "query_type": "academic|fee|general"}`
+- `POST /api/chat` with `{"programme": "BSc IT", "message": "..."}` → `{"answer": "...", "query_type": "academic|fee|general"}`
 - `POST /api/chat` can also include conversation history:
   ```json
   {
-    "programme": "BCA",
+    "programme": "BSc IT",
     "message": "What happens if I don't meet them?",
     "history": [
       {"role": "user", "content": "What are the attendance requirements?"},

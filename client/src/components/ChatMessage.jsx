@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Bot, Copy, RefreshCw, ThumbsDown, ThumbsUp } from "lucide-react";
+import { Bot, Check, Copy, RefreshCw, ThumbsDown, ThumbsUp } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -47,16 +47,27 @@ export default function ChatMessage({
     );
   }
   return (
-    <div className="msg-row assistant">
+    <div className={`msg-row assistant${loading ? " is-thinking" : ""}${error ? " is-error" : ""}`}>
       <div className="ai-avatar">
-        <Bot size={18} />
+        <Bot size={17} />
       </div>
       <div className="assistant-body">
-        {queryType && <span className={`badge badge-${queryType}`}>{queryType.toUpperCase()}</span>}
+        {queryType && (
+          <span className={`badge badge-${queryType}`}>
+            <i className="badge-dot" aria-hidden="true" />
+            {queryType}
+          </span>
+        )}
         {loading ? (
-          <div className="thinking">
-            Thinking<span className="dots"><i /><i /><i /></span>
-          </div>
+          <>
+            <div className="thinking" role="status" aria-live="polite">
+              <span className="thinking-label">Thinking</span>
+              <span className="dots"><i /><i /><i /></span>
+            </div>
+            <div className="skeleton" aria-hidden="true">
+              <span /><span /><span />
+            </div>
+          </>
         ) : (
           <>
             {error ? (
@@ -80,8 +91,11 @@ export default function ChatMessage({
             {!error && (
               <>
                 <div className="answer-actions">
-                  <button className="answer-action-btn" onClick={copyAnswer}>
-                    <Copy size={14} />
+                  <button
+                    className={`answer-action-btn ${copyState === "Copied" ? "is-done" : ""}`}
+                    onClick={copyAnswer}
+                  >
+                    {copyState === "Copied" ? <Check size={14} /> : <Copy size={14} />}
                     {copyState}
                   </button>
                   <button

@@ -14,6 +14,12 @@ logger = logging.getLogger(__name__)
 
 MODEL = "openai/gpt-oss-120b"
 NOT_AVAILABLE = "The information is not available in the provided college documents."
+BSC_IT_DOCUMENT_NOTICE = (
+    "The current academic and fee PDFs contain edited BSc IT drafts. Their course "
+    "codes, fee figures, and institutional details have not been independently "
+    "verified, so I can't provide programme-specific details as fact. Please confirm "
+    "BSc IT information with the college."
+)
 PDF_MISSING_PREFIX = "PDF_MISSING:"
 
 _llm = None
@@ -214,6 +220,13 @@ def response(state: State) -> dict:
     if context.startswith(PDF_MISSING_PREFIX):
         logger.info("[CHAT] response generated in %.2fs (PDF unavailable)", perf_counter() - started)
         return {"messages": [AIMessage(content=context[len(PDF_MISSING_PREFIX):].strip())]}
+
+    if programme == "BSc IT" and query_type in {"academic", "fee"}:
+        logger.info(
+            "[CHAT] response generated in %.2fs (unverified BSc IT document draft)",
+            perf_counter() - started,
+        )
+        return {"messages": [AIMessage(content=BSC_IT_DOCUMENT_NOTICE)]}
 
     if query_type == "general":
         system = (
